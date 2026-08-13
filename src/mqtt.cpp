@@ -1,6 +1,4 @@
 #include "dht11.h"
-#include "sensor_flame.h"
-#include "sensor_gas.h"
 #include "sensor_rain.h"
 
 #include "servo_control.h"
@@ -23,7 +21,6 @@ const int mqtt_port = 1883;
 // ============================================================
 // MQTT TOPICS - FAN
 // ============================================================
-
 // Python Gateway -> ESP32
 //
 // {
@@ -33,9 +30,7 @@ const int mqtt_port = 1883;
 //   "source": "smart-home-ai-controller",
 //   "sent_at_unix_ms": ...
 // }
-const char* command_topic =
-    "smart-home/fan/command";
-
+const char* command_topic = "smart-home/fan/command";
 
 // ESP32 -> Python Gateway
 //
@@ -55,8 +50,7 @@ const char* command_topic =
 //   "applied_level": 1,
 //   "error": "manual_override"
 // }
-const char* state_topic =
-    "smart-home/fan/state";
+const char* state_topic = "smart-home/fan/state";
 // ESP32 availability:
 // {"status":"online"}
 // hoặc LWT:
@@ -66,15 +60,8 @@ const char* availability_topic = "smart-home/fan/availability";
 // MQTT TOPICS - SENSOR
 // ============================================================
 const char* temperature_topic = "smart-home/sensor/temperature";
-
 const char* humidity_topic ="smart-home/sensor/humidity";
-
-const char* flame_topic =  "smart-home/sensor/flame";
-
-const char* gas_topic =  "smart-home/sensor/gas";
-
 const char* rain_topic =  "smart-home/sensor/rain";
-
 // ============================================================
 // MQTT TOPICS - ACTUATOR STATE
 // ============================================================
@@ -83,17 +70,14 @@ const char* servo_retracted_topic = "smart-home/servo/retracted";
 // ============================================================
 // AVAILABILITY PAYLOAD
 // ============================================================
-const char* availability_online_payload = "{\"status\":\"OPEN\"}";
-
-const char* availability_offline_payload = "{\"status\":\"CLOSE\"}";
+const char* availability_online_payload = "{\"status\":\"online\"}";
+const char* availability_offline_payload = "{\"status\":\"ofline\"}";
 
 // ============================================================
 // MQTT CLIENT
 // ============================================================
 WiFiClient espClient;
 PubSubClient client(espClient);
-
-
 // ============================================================
 // TIMING
 // ============================================================
@@ -107,33 +91,16 @@ const unsigned long RECONNECT_INTERVAL_MS = 5000;
 unsigned long lastSensorMsg = 0;
 unsigned long lastReconnectAttempt = 0;
 
-
-// ============================================================
-// EVENT SENSOR STATE
-// ============================================================
-
-// Dùng để PIR / Flame chỉ publish ngay khi thay đổi.
-bool eventStateInitialized = false;
-
-bool previousMotion = false;
-bool previousFlame = false;
-
 bool connectWiFi()
 {
     if (WiFi.status() == WL_CONNECTED)
     {
         return true;
     }
-
     Serial.print("Connecting to WiFi: ");
     Serial.println(ssid);
-
     WiFi.mode(WIFI_STA);
-
-    WiFi.begin(
-        ssid,
-        password
-    );
+    WiFi.begin(ssid, password);
 
     // Không block vô hạn.
     // Chờ tối đa khoảng 10 giây.
@@ -143,20 +110,15 @@ bool connectWiFi()
         {
             Serial.println();
             Serial.println("WiFi connected");
-
             Serial.print("ESP32 IP: ");
             Serial.println(WiFi.localIP());
-
             return true;
         }
-
         Serial.print(".");
         delay(500);
     }
-
     Serial.println();
     Serial.println("WiFi connection failed");
-
     return false;
 }
 // MQTT PUBLISH HELPERS
@@ -166,14 +128,6 @@ bool publishFloat(const char* topic,float value,bool retained = true)
     char buffer[24];
     snprintf(buffer, sizeof(buffer),"%.2f",value);
     return client.publish( topic,buffer,retained);
-}
-
-
-bool publishInt(const char* topic,int value,bool retained = true)
-{
-    char buffer[16];
-    snprintf( buffer, sizeof(buffer),"%d", value);
-    return client.publish(topic, buffer, retained);
 }
 
 bool publishBool( const char* topic, bool value,bool retained = true)
@@ -213,9 +167,7 @@ void publishFanState( int appliedLevel, long commandId = -1, const char* errorMe
     }
     bool ok = client.publish(state_topic, buffer, false);
     Serial.print( "Fan state -> MQTT: ");
-
     Serial.println(buffer);
-
     if (!ok)
     {
         Serial.println(
@@ -256,9 +208,7 @@ void callback( char* topic, byte* payload,unsigned int length)
     }
     Serial.println();
 
-
     JsonDocument doc; //chứa DL sau khi giải mã
-
     DeserializationError jsonError = deserializeJson(doc, payload, length);
 
     if (jsonError)
@@ -301,6 +251,7 @@ void callback( char* topic, byte* payload,unsigned int length)
     Serial.print(requestedLevel);
     Serial.print(", command_id = ");
     Serial.println( commandId );
+
     // Kiểm tra chế độ đè thủ công: MANUAL OVERRIDE
     if (!canAIGovernFan())
     {
@@ -336,25 +287,6 @@ void callback( char* topic, byte* payload,unsigned int length)
     publishFanState(actualLevel,commandId);
 }
 
-//dữ liệu cảm biến được gửi sau 5s
-void sendEventSensorData(bool force = false)
-//force = false: chỉ gửi dữ liệu khi cảm biến thay đổi trạng thái
-{
-    if (!client.connected())
-    {
-        return;
-    }
-    bool flame = isFlameDetected();
-    // FLAME
-    if ( force || !eventStateInitialized || flame != previousFlame)
-    {
-        publishBool(flame_topic, flame,false);
-        Serial.print("Flame -> MQTT: ");
-        Serial.println( flame ? "DETECTED": "CLEAR");
-        previousFlame = flame;
-    }
-    eventStateInitialized = true;
-}
 // PERIODIC SENSOR DATA
 void sendSensorData()
 {
@@ -381,8 +313,6 @@ void sendSensorData()
     {
         Serial.println( "DHT11 temperature read failed");
     }
-
-
     if (!isnan(humidity))
     {
         publishFloat(humidity_topic,humidity,true);
@@ -391,9 +321,6 @@ void sendSensorData()
     {
         Serial.println("DHT11 humidity read failed");
     }
-    // MQ2 GAS
-    int gas = getGasAnalogValue();
-    publishInt(gas_topic,gas,true);
     // RAIN
     bool rain = getRainAnalogValue();
     publishBool(rain_topic,rain,true);
@@ -404,10 +331,6 @@ void sendSensorData()
 
     bool ledOn = isLEDOn();
     publishBool( led_state_topic, ledOn, true);    
-
-    // REFRESH FLAME
-    //refresh mỗi 5 giây
-    sendEventSensorData(true);
 
     Serial.println(
         "========== SENSOR MQTT =========="
@@ -424,8 +347,6 @@ void sendSensorData()
         Serial.print( humidity );
         Serial.println( " %");
     }
-    Serial.print("Gas: ");
-    Serial.println(gas);
     Serial.print("Rain: ");
     Serial.println(rain);
 
@@ -502,7 +423,6 @@ bool connectMQTT()
     publishFanState(getFanLevel());
     // Force sensor refresh ngay sau reconnect.
     lastSensorMsg = millis() - SENSOR_INTERVAL_MS;
-    eventStateInitialized = false;
     return true;
 }
 // SETUP WIFI + MQTT
@@ -549,8 +469,6 @@ void maintainMQTTConnection()
     }
     // MQTT NETWORK LOOP
     client.loop(); //duy trì luồng DL
-    // FAST EVENT SENSOR
-    sendEventSensorData();
     // PERIODIC SENSOR DATA
     sendSensorData();
 }
