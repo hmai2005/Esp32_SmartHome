@@ -71,7 +71,7 @@ const char* servo_retracted_topic = "smart-home/servo/retracted";
 // AVAILABILITY PAYLOAD
 // ============================================================
 const char* availability_online_payload = "{\"status\":\"online\"}";
-const char* availability_offline_payload = "{\"status\":\"ofline\"}";
+const char* availability_offline_payload = "{\"status\":\"offline\"}";
 
 // ============================================================
 // MQTT CLIENT
