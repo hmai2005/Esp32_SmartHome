@@ -3,83 +3,100 @@
 #include "servo_control.h"
 #include "sensor_rain.h"
 
-#define SERVO_PIN 22 // Chân điều khiển Servo 
-#define BUTTON_PIN 13 //button điều khiển servo
+#define SERVO_PIN 22  // Chân điều khiển Servo 
+#define BUTTON_PIN 13 // Button điều khiển servo
 
 Servo myServo;
 
-// Biến trạng thái Servo & Biến đếm thời gian chống dội (Debounce)
-volatile bool currentServoState = false;  // false: 0 độ, true: 180 độ
-volatile unsigned long lastDebounceTime = 0;
-volatile bool manualOverride = false;      // Đang trong chế độ ép điều khiển thủ công
-unsigned long overrideStartTime = 0;       // Thời điểm bắt đầu nhấn nút
+bool currentServoState = false;       // false: 0 độ (Mở dây phơi), true: 180 độ (Thu dây phơi)
+static volatile unsigned long lastDebounceTime = 0;
+volatile bool manualTriggered = false; 
 
-// --- HÀM XỬ LÝ NGẮT NGOÀI ---
+// --- HÀM XỬ LÝ NGẮT NGOÀI (ISR) ---
 void IRAM_ATTR handleButtonInterrupt() {
   unsigned long currentTime = millis();
-  // Chống dội nút bấm (Debounce 250ms)
   if (currentTime - lastDebounceTime > 250) {
-    currentServoState = !currentServoState; // Đảo trạng thái Servo
-    manualOverride = true;                  // Kích hoạt chế độ thủ công
-    overrideStartTime = millis(); // Cập nhật ngay thời điểm bấm
+    manualTriggered = true; 
     lastDebounceTime = currentTime;
   }
 }
 
 void setupServo() {
-  // Cho phép cấp xung cho Servo trên ESP32
   ESP32PWM::allocateTimer(0);
-  myServo.setPeriodHertz(50);    // Tần số chuẩn cho Servo 50Hz
-  myServo.attach(SERVO_PIN, 500, 2400); // Gắn chân với dải xung chuẩn (500us - 2400us)
+  myServo.setPeriodHertz(50);
+  myServo.attach(SERVO_PIN, 500, 2400);
 
-  // Góc mặc định khi khởi động: 0 độ (Tạnh ráo)
-  myServo.write(0);
+  myServo.write(0); // Mặc định mở dây phơi khi khởi động
 
-  // 2. Cấu hình chân nút bấm ngắt ngoài (Dùng điện trở kéo lên nội bộ PULLUP)
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  // Đăng ký ngắt ngoài: kích hoạt khi nhấn nút (FALLING: từ HIGH xuống LOW)
   attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), handleButtonInterrupt, FALLING);
 
   Serial.println("Khoi tao Servo thanh cong!");
 }
 
-// Trả về true nếu đã thu dây phơi (giai đoạn Servo quay 180 độ)
 bool isClothesRetracted() {
   return currentServoState; 
 }
 
 void controlServoByRain() {
-  // --- CHẾ ĐỘ THỦ CÔNG (ƯU TIÊN NÚT BẤM) ---
-  // Nếu người dùng vừa nhấn nút thủ công
-  if (manualOverride) {
-    // Điều khiển Servo theo trạng thái nút vừa bấm
-    int targetAngle = currentServoState ? 180 : 0;
-    // Chỉ ghi lệnh nếu Servo chưa ở đúng vị trí
-    if (myServo.read() != targetAngle) {
-      myServo.write(targetAngle);
-      Serial.printf("Nut bam thu cong -> Quay Servo %d do\n", targetAngle);
-    }
+  static bool manualOverride = false;
+  static unsigned long overrideStartTime = 0;
+  
+  // Biến quản lý đếm thời gian 10s sau khi tạnh mưa
+  static unsigned long dryStartTime = 0; 
+  const unsigned long DRY_DELAY_MS = 10000; // Thời gian chờ: 10 giây (10000 ms)
 
-    // Duy trì chế độ thủ công trong 10 giây, sau 10s sẽ tự động trả lại cho Cảm biến mưa
+  // 1. CHẾ ĐỘ THỦ CÔNG (ƯU TIÊN NÚT BẤM)
+  if (manualTriggered) {
+    manualTriggered = false;
+    currentServoState = !currentServoState;
+    manualOverride = true;
+    overrideStartTime = millis();
+    dryStartTime = 0; // Reset bộ đếm tạnh mưa
+    
+    int targetAngle = currentServoState ? 180 : 0;
+    myServo.write(targetAngle);
+    Serial.printf("Nut bam thu cong -> Quay Servo %d do\n", targetAngle);
+  }
+
+  if (manualOverride) {
     if (millis() - overrideStartTime > 10000) {
       manualOverride = false;
-      overrideStartTime = 0;
       Serial.println(F("Het thoi gian uu tien thu cong -> Tra lai quyen cho Cam bien Mua"));
     }
-    return; 
+    return; // Đang ưu tiên nút bấm thì bỏ qua logic cảm biến tự động
   }
 
-  // --- CHẾ ĐỘ TỰ ĐỘNG THEO CẢM BIẾN MƯA ---
+  // 2. CHẾ ĐỘ TỰ ĐỘNG THEO CẢM BIẾN MƯA
+  bool raining = isRaining(); 
 
-  // CHỈ QUAY SERVO VÀ IN SERIAL KHI TRẠNG THÁI THAY ĐỔI
-  if (isRaining && !currentServoState) {
-    myServo.write(180);
-    currentServoState = true;
-    Serial.println(F("Phat hien mua -> Quay Servo 180 do (Dong mai che)"));
+  // --- TRƯỜNG HỢP 1: TRỜI MƯA ---
+  if (raining) {
+    dryStartTime = 0; // Hễ có mưa là reset bộ đếm thời gian tạnh về 0
+
+    if (!currentServoState) { // Nếu dây phơi đang mở -> Thu dây phơi ngay lập tức
+      myServo.write(180);
+      currentServoState = true;
+      Serial.println(F("Phat hien MUA -> Thu day phoi ngay lap tuc (180 do)"));
+    }
   } 
-  else if (!isRaining && currentServoState) {
-    myServo.write(0);
-    currentServoState = false;
-    Serial.println(F("Troi tanh -> Quay Servo 0 do (Mo mai che)"));
+  // --- TRƯỜNG HỢP 2: TRỜI TẠNH ---
+  else {
+    if (currentServoState) { // Nếu dây phơi đang thu -> Cần chờ đủ 10 giây tạnh liên tục
+      
+      // Bắt đầu chốt mốc thời gian ngay khi phát hiện tạnh mưa
+      if (dryStartTime == 0) {
+        dryStartTime = millis(); 
+        Serial.println(F("Troi da tanh -> Bat dau dem 10 giay de mo lai day phoi..."));
+      }
+
+      // Kiểm tra nếu thời gian tạnh mưa đã đủ 10 giây
+      if (millis() - dryStartTime >= DRY_DELAY_MS) {
+        myServo.write(0);
+        currentServoState = false;
+        dryStartTime = 0; // Reset bộ đếm
+        Serial.println(F("Da tanh mua liendu 10s -> Mo lai day phoi (0 do)"));
+      }
     }
   }
+}

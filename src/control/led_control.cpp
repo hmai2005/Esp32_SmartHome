@@ -6,74 +6,53 @@
 
 bool ledState = false;
 
-// Biến chống dội nút
-unsigned long lastButtonTime = 0;
+// Biến ngắt và chống dội (dùng static để tránh đụng độ tên biến)
+static volatile unsigned long lastDebounceTime = 0;
+static volatile bool buttonPressed = false;
 
-// Trạng thái nút trước đó
-bool lastButtonState = HIGH;
-
-
-void setupLED()
-{
-    // GPIO26 điều khiển transistor
-    pinMode(LED_PIN, OUTPUT);
-
-    // Mặc định tắt đèn
-    digitalWrite(LED_PIN, LOW);
-    ledState = false;
-
-    // GPIO25 làm nút nhấn
-    // Dùng điện trở kéo lên nội bộ
-    pinMode(LED_BUTTON, INPUT_PULLUP);
-
-    Serial.println("Khoi tao LED & Button thanh cong!");
+// --- HÀM XỬ LÝ NGẮT NGOÀI (ISR) ---
+void IRAM_ATTR handleLEDButtonInterrupt() {
+  unsigned long currentTime = millis();
+  // Chống dội nút 250ms
+  if (currentTime - lastDebounceTime > 250) {
+    buttonPressed = true;
+    lastDebounceTime = currentTime;
+  }
 }
 
+void setupLED() {
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+  ledState = false;
 
-void updateLEDButton()
-{
-    bool buttonState = digitalRead(LED_BUTTON);
+  pinMode(LED_BUTTON, INPUT_PULLUP);
+  // Đăng ký ngắt ngoài khi nhấn nút (FALLING: HIGH -> LOW)
+  attachInterrupt(digitalPinToInterrupt(LED_BUTTON), handleLEDButtonInterrupt, FALLING);
 
-    // Phát hiện cạnh nhấn:
-    // HIGH -> LOW
-    if (lastButtonState == HIGH && buttonState == LOW)
-    {
-        // Chống dội nút 250 ms
-        if (millis() - lastButtonTime > 250)
-        {
-            ledState = !ledState;
+  Serial.println("Khoi tao LED & Button Ngat ngoai thanh cong!");
+}
 
-            digitalWrite(LED_PIN, ledState ? HIGH : LOW);
+void updateLEDButton() {
+  // Xử lý sự kiện khi có tín hiệu từ ngắt nút bấm
+  if (buttonPressed) {
+    buttonPressed = false; // Xóa cờ ngắt
+    ledState = !ledState;  // Đảo trạng thái Bật/Tắt
 
-            if (ledState)
-            {
-                Serial.println("LED -> BAT");
-            }
-            else
-            {
-                Serial.println("LED -> TAT");
-            }
+    digitalWrite(LED_PIN, ledState ? HIGH : LOW);
 
-            lastButtonTime = millis();
-        }
+    if (ledState) {
+      Serial.println(F("Nut bam (GPIO25) -> LED BAT"));
+    } else {
+      Serial.println(F("Nut bam (GPIO25) -> LED TAT"));
     }
-
-    lastButtonState = buttonState;
+  }
 }
 
-
-bool isLEDOn()
-{
-    return ledState;
+bool isLEDOn() {
+  return ledState;
 }
 
-
-void setLED(bool state)
-{
-    ledState = state;
-
-    digitalWrite(
-        LED_PIN,
-        ledState ? HIGH : LOW
-    );
+void setLED(bool state) {
+  ledState = state;
+  digitalWrite(LED_PIN, ledState ? HIGH : LOW);
 }

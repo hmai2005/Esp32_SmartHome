@@ -7,7 +7,7 @@
 const int GAS_THRESHOLD = 1800; 
 
 void setupGasSensor() {
-  pinMode(GAS_ANALOG_PIN, INPUT);
+  pinMode(GAS_ANALOG_PIN, INPUT_PULLUP);
   Serial.println("Khoi tao cam bien GAS thanh cong!");
 }
 

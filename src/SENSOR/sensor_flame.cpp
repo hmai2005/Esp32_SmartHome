@@ -4,7 +4,7 @@
 // Khai báo chân kết nối trên ESP32
 #define FLAME_ANALOG_PIN  34  // Chân AO (đọc độ mạnh của bức xạ lửa)
 
-const int FLAME_THRESHOLD = 1500; 
+const int FLAME_THRESHOLD = 500; 
 
 //Hàm trả về true nếu CÓ LỬA, false nếu AN TOÀN
 bool isFlameDetected() {
@@ -16,7 +16,8 @@ bool isFlameDetected() {
 
 void setupFlameSensor() {
   // Chân Analog Read trên ESP32 không bắt buộc pinMode(), nhưng khai báo INPUT cho rõ ràng
-  pinMode(FLAME_ANALOG_PIN, INPUT); 
+  pinMode(FLAME_ANALOG_PIN, INPUT_PULLUP); 
+  
   Serial.println("Khoi tao cam bien LUA thanh cong!");
 }
 

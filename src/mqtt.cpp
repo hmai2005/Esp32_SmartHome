@@ -11,10 +11,10 @@
 
 // Điền WiFi của bạn tại đây.
 // Không nên commit mật khẩu thật lên Git.
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "GIMhomes #4";
+const char* password = "likeyourhome";
 
-const char* mqtt_server = "192.168.1.8";
+const char* mqtt_server = "192.168.40.100";
 const int mqtt_port = 1883;
 
 
