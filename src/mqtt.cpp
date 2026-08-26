@@ -6,6 +6,7 @@
 #include "led_control.h"
 
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
@@ -14,8 +15,10 @@
 const char* ssid = "GIMhomes #4";
 const char* password = "likeyourhome";
 
-const char* mqtt_server = "192.168.40.100";
-const int mqtt_port = 1883;
+const char* mqtt_server = "caebe80fc31544bab129c40f7b5d3425.s1.eu.hivemq.cloud";
+const int mqtt_port = 8883;
+const char* mqtt_username = "Hien Mai";
+const char* mqtt_password = "12345678";
 
 
 // ============================================================
@@ -76,7 +79,7 @@ const char* availability_offline_payload = "{\"status\":\"offline\"}";
 // ============================================================
 // MQTT CLIENT
 // ============================================================
-WiFiClient espClient;
+WiFiClientSecure espClient;
 PubSubClient client(espClient);
 // ============================================================
 // TIMING
@@ -392,7 +395,8 @@ bool connectMQTT()
     // Nếu ESP32 mất điện / WiFi bất ngờ:
     // Broker giữ:{"status":"offline"}
 
-    bool connected = client.connect( clientId.c_str(),nullptr,nullptr, availability_topic, 1,true,availability_offline_payload);
+    bool connected = client.connect( clientId.c_str(), mqtt_username, mqtt_password,
+        availability_topic, 1, true, availability_offline_payload);
     if (!connected)
     {
         Serial.print( "MQTT failed, rc=");
@@ -429,6 +433,8 @@ bool connectMQTT()
 void setupWiFiAndMQTT()
 {
     connectWiFi();
+    // HiveMQ Cloud requires MQTT over TLS on port 8883.
+    espClient.setInsecure();
     client.setServer( mqtt_server, mqtt_port);
     client.setCallback(callback);
 
