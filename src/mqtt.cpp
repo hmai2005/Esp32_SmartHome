@@ -17,7 +17,7 @@ const char* password = "likeyourhome";
 
 const char* mqtt_server = "caebe80fc31544bab129c40f7b5d3425.s1.eu.hivemq.cloud";
 const int mqtt_port = 8883;
-const char* mqtt_username = "Hien Mai";
+const char* mqtt_username = "SmartHomeApp";
 const char* mqtt_password = "12345678";
 
 
@@ -65,6 +65,7 @@ const char* availability_topic = "smart-home/fan/availability";
 const char* temperature_topic = "smart-home/sensor/temperature";
 const char* humidity_topic ="smart-home/sensor/humidity";
 const char* rain_topic =  "smart-home/sensor/rain";
+const char* person_count_topic = "smart-home/ai/person_count";
 // ============================================================
 // MQTT TOPICS - ACTUATOR STATE
 // ============================================================
@@ -93,6 +94,7 @@ const unsigned long RECONNECT_INTERVAL_MS = 5000;
 
 unsigned long lastSensorMsg = 0;
 unsigned long lastReconnectAttempt = 0;
+int personCount = 0;
 
 bool connectWiFi()
 {
@@ -197,6 +199,30 @@ bool applyAIFanLevel(int level)
 // ============================================================
 void callback( char* topic, byte* payload,unsigned int length)
 {
+    if (strcmp(topic, person_count_topic) == 0)
+    {
+        JsonDocument doc;
+        DeserializationError jsonError = deserializeJson(doc, payload, length);
+
+        if (jsonError || !doc["count"].is<int>())
+        {
+            Serial.println("Invalid person count JSON");
+            return;
+        }
+
+        int receivedCount = doc["count"].as<int>();
+        if (receivedCount < 0)
+        {
+            Serial.println("Invalid person count: negative value");
+            return;
+        }
+
+        personCount = receivedCount;
+        Serial.print("Person count received: ");
+        Serial.println(personCount);
+        return;
+    }
+
     // Chỉ quan tâm fan command.
     if (strcmp(topic, command_topic) != 0) 
     //So sánh topic nhận được với topic điều khiển quạt (command_topic).
@@ -415,6 +441,11 @@ bool connectMQTT()
     Serial.print( ": ");
     Serial.println( subscribed ? "OK" : "FAILED");
 
+    bool personCountSubscribed = client.subscribe(person_count_topic, 1);
+    Serial.print("Subscribe ");
+    Serial.print(person_count_topic);
+    Serial.print(": ");
+    Serial.println(personCountSubscribed ? "OK" : "FAILED");
 
     // ========================================================
     // PUBLISH CURRENT FAN SNAPSHOT: chủ động gửi trạng thái của quạt lên mqtt
