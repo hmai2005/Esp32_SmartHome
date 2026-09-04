@@ -39,6 +39,8 @@ void setupFanPWM();
  */
 void updateFanControl();
 
+void discardFanButtonEvent();
+
 
 // ============================================================
 // AI / GATEWAY CONTROL
@@ -72,6 +74,8 @@ bool canAIGovernFan();
  *            hoặc PWM không áp dụng được.
  */
 bool setFanLevelFromAI(int level);
+
+bool setFanLevelFromManual(int level);
 
 
 // ============================================================

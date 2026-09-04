@@ -5,4 +5,8 @@ void setupBuzzer();
 
 void fireAlarmTask();
 
+bool isAlarmActive();
+
+bool consumeAlarmStopButton();
+
 #endif

@@ -14,6 +14,7 @@
 //======================
 bool alarmActive = false; // Trạng thái chốt báo động
 bool alarmMuted  = false; // Cờ khóa tạm thời nếu bấm nút khi gas/lửa vẫn còn
+static bool alarmStopButtonPressed = false;
 
 void setupBuzzer()
 {
@@ -51,6 +52,7 @@ void fireAlarmTask()
     {
         alarmActive = false; // Hủy trạng thái báo động
         alarmMuted  = true;  // Tránh việc cảm biến đang nhận gas/lửa kích hoạt còi lại ngay lập tức
+        alarmStopButtonPressed = true;
         digitalWrite(BUZZER_PIN, LOW);
         Serial.println(F("Da nhan nut -> Tat bao dong thu cong!"));
     }
@@ -64,4 +66,16 @@ void fireAlarmTask()
     {
         digitalWrite(BUZZER_PIN, LOW);
     }
+}
+
+bool isAlarmActive()
+{
+    return alarmActive;
+}
+
+bool consumeAlarmStopButton()
+{
+    bool pressed = alarmStopButtonPressed;
+    alarmStopButtonPressed = false;
+    return pressed;
 }

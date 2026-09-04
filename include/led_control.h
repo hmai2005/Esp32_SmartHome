@@ -4,6 +4,8 @@
 void setupLED();
 void updateLEDButton();
 
+void discardLEDButtonEvent();
+
 bool isLEDOn();
 void setLED(bool state);
 

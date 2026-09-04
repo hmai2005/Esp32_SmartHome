@@ -260,6 +260,11 @@ void updateFanControl()
     Serial.println(" s");
 }
 
+void discardFanButtonEvent()
+{
+    fanButtonEvent = false;
+}
+
 // 14. CHECK MANUAL OVERRIDE
 bool isFanManualOverrideActive()
 {
@@ -318,6 +323,31 @@ bool setFanLevelFromAI(int level)
     Serial.println(level);
     return true;
 }
+
+bool setFanLevelFromManual(int level)
+{
+    if (level < 0 || level >= TOTAL_LEVELS)
+    {
+        Serial.print("[FAN] Manual requested invalid level: ");
+        Serial.println(level);
+        return false;
+    }
+
+    if (currentLevel != (uint8_t)level && !setFanLevelInternal((uint8_t)level))
+    {
+        return false;
+    }
+
+    fanManualOverride = true;
+    fanOverrideStartTime = millis();
+    Serial.print("[FAN] App MANUAL Override ON | Level = ");
+    Serial.print(currentLevel);
+    Serial.print(" | Timeout = ");
+    Serial.print(MANUAL_OVERRIDE_MS / 1000);
+    Serial.println(" s");
+    return true;
+}
+
 // Trả về cấp quạt thực tế:
 // mqtt.cpp có thể dùng hàm này để gửi ACK về Raspberry Pi.
 int getFanLevel()

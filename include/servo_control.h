@@ -3,5 +3,7 @@
 
 void setupServo();
 void controlServoByRain();
+void discardServoButtonEvent();
 bool isClothesRetracted();
+void setServoRetracted(bool retracted);
 #endif

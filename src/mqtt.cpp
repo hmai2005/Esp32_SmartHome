@@ -1,9 +1,12 @@
 #include "dht11.h"
+#include "sensor_flame.h"
+#include "sensor_gas.h"
 #include "sensor_rain.h"
 
 #include "servo_control.h"
 #include "fan_control.h"
 #include "led_control.h"
+#include "buzzer_control.h"
 
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -34,6 +37,7 @@ const char* mqtt_password = "12345678";
 //   "sent_at_unix_ms": ...
 // }
 const char* command_topic = "smart-home/fan/command";
+const char* manual_command_topic = "smart-home/fan/manual-command";
 
 // ESP32 -> Python Gateway
 //
@@ -65,12 +69,16 @@ const char* availability_topic = "smart-home/fan/availability";
 const char* temperature_topic = "smart-home/sensor/temperature";
 const char* humidity_topic ="smart-home/sensor/humidity";
 const char* rain_topic =  "smart-home/sensor/rain";
+const char* flame_topic = "smart-home/sensor/flame";
 const char* person_count_topic = "smart-home/ai/person_count";
+const char* safety_status_topic = "smart-home/safety/status";
 // ============================================================
 // MQTT TOPICS - ACTUATOR STATE
 // ============================================================
 const char* led_state_topic = "smart-home/led/state";
 const char* servo_retracted_topic = "smart-home/servo/retracted";
+const char* led_command_topic = "smart-home/led/command";
+const char* servo_command_topic = "smart-home/servo/command";
 // ============================================================
 // AVAILABILITY PAYLOAD
 // ============================================================
@@ -138,6 +146,60 @@ bool publishFloat(const char* topic,float value,bool retained = true)
 bool publishBool( const char* topic, bool value,bool retained = true)
 {
     return client.publish(topic, value ? "1" : "0", retained);
+}
+
+bool publishStateJson(const char* topic, bool state, bool retained = true)
+{
+    JsonDocument doc;
+    doc["state"] = state ? 1 : 0;
+
+    char buffer[32];
+    size_t written = serializeJson(doc, buffer, sizeof(buffer));
+    return written > 0 && client.publish(topic, buffer, retained);
+}
+
+void publishSafetyStatus()
+{
+    bool gasDetected = isGasDetected();
+    bool flameDetected = isFlameDetected();
+
+    bool safe = !gasDetected && !flameDetected && !isAlarmActive();
+
+    Serial.println("========== SAFETY ==========");
+    Serial.print("Gas detected   : ");
+    Serial.println(gasDetected ? "YES" : "NO");
+
+    Serial.print("Flame detected : ");
+    Serial.println(flameDetected ? "YES" : "NO");
+
+    Serial.print("Safe           : ");
+    Serial.println(safe ? "TRUE" : "FALSE");
+
+    JsonDocument doc;
+    doc["safe"] = safe;
+
+    char buffer[64];
+    size_t written = serializeJson(doc, buffer, sizeof(buffer));
+
+    if (written == 0)
+    {
+        Serial.println("ERROR: Cannot serialize safety status");
+        return;
+    }
+
+    Serial.print("MQTT safety payload: ");
+    Serial.println(buffer);
+
+    bool ok = client.publish(
+        safety_status_topic,
+        buffer,
+        true
+    );
+
+    Serial.print("Publish safety: ");
+    Serial.println(ok ? "OK" : "FAILED");
+
+    Serial.println("============================");
 }
 
 // FAN STATE / ACK : phản hồi
@@ -220,6 +282,68 @@ void callback( char* topic, byte* payload,unsigned int length)
         personCount = receivedCount;
         Serial.print("Person count received: ");
         Serial.println(personCount);
+        return;
+    }
+
+    if (strcmp(topic, manual_command_topic) == 0)
+    {
+        JsonDocument doc;
+        DeserializationError jsonError = deserializeJson(doc, payload, length);
+        if (jsonError || !doc["level"].is<int>())
+        {
+            Serial.println("Invalid manual fan command JSON");
+            return;
+        }
+
+        int requestedLevel = doc["level"].as<int>();
+        if (!setFanLevelFromManual(requestedLevel))
+        {
+            publishFanState(getFanLevel(), -1, "invalid_level");
+            return;
+        }
+        publishFanState(getFanLevel());
+        return;
+    }
+
+    if (strcmp(topic, led_command_topic) == 0)
+    {
+        JsonDocument doc;
+        DeserializationError jsonError = deserializeJson(doc, payload, length);
+        JsonVariant state = doc["state"];
+        if (!state.is<bool>())
+        {
+            state = doc["on"];
+        }
+
+        if (jsonError || !state.is<bool>())
+        {
+            Serial.println("Invalid LED command JSON");
+            return;
+        }
+
+        setLED(state.as<bool>());
+        Serial.print("LED command received: ");
+        Serial.println(isLEDOn() ? "ON" : "OFF");
+        return;
+    }
+
+    if (strcmp(topic, servo_command_topic) == 0)
+    {
+        JsonDocument doc;
+        DeserializationError jsonError = deserializeJson(doc, payload, length);
+        JsonVariant state = doc["retracted"];
+        if (!state.is<bool>())
+        {
+            state = doc["state"];
+        }
+
+        if (jsonError || !state.is<bool>())
+        {
+            Serial.println("Invalid servo command JSON");
+            return;
+        }
+
+        setServoRetracted(state.as<bool>());
         return;
     }
 
@@ -350,9 +474,11 @@ void sendSensorData()
     {
         Serial.println("DHT11 humidity read failed");
     }
-    // RAIN
-    bool rain = getRainAnalogValue();
-    publishBool(rain_topic,rain,true);
+    // RAIN / FLAME: 1 = detected, 0 = clear.
+    bool rain = isRaining();
+    publishBool(rain_topic, rain, true);
+    bool flame = isFlameDetected();
+    publishStateJson(flame_topic, flame, true);
 
     // SERVO 
     bool retracted = isClothesRetracted();
@@ -360,6 +486,7 @@ void sendSensorData()
 
     bool ledOn = isLEDOn();
     publishBool( led_state_topic, ledOn, true);    
+    publishSafetyStatus();
 
     Serial.println(
         "========== SENSOR MQTT =========="
@@ -378,6 +505,9 @@ void sendSensorData()
     }
     Serial.print("Rain: ");
     Serial.println(rain);
+
+    Serial.print("Flame: ");
+    Serial.println(flame);
 
     Serial.print("Fan level: ");
     Serial.println(getFanLevel());
@@ -441,11 +571,29 @@ bool connectMQTT()
     Serial.print( ": ");
     Serial.println( subscribed ? "OK" : "FAILED");
 
+    bool manualSubscribed = client.subscribe(manual_command_topic, 1);
+    Serial.print("Subscribe ");
+    Serial.print(manual_command_topic);
+    Serial.print(": ");
+    Serial.println(manualSubscribed ? "OK" : "FAILED");
+
     bool personCountSubscribed = client.subscribe(person_count_topic, 1);
     Serial.print("Subscribe ");
     Serial.print(person_count_topic);
     Serial.print(": ");
     Serial.println(personCountSubscribed ? "OK" : "FAILED");
+
+    bool ledSubscribed = client.subscribe(led_command_topic, 1);
+    Serial.print("Subscribe ");
+    Serial.print(led_command_topic);
+    Serial.print(": ");
+    Serial.println(ledSubscribed ? "OK" : "FAILED");
+
+    bool servoSubscribed = client.subscribe(servo_command_topic, 1);
+    Serial.print("Subscribe ");
+    Serial.print(servo_command_topic);
+    Serial.print(": ");
+    Serial.println(servoSubscribed ? "OK" : "FAILED");
 
     // ========================================================
     // PUBLISH CURRENT FAN SNAPSHOT: chủ động gửi trạng thái của quạt lên mqtt

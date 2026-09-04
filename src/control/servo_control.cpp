@@ -11,6 +11,9 @@ Servo myServo;
 bool currentServoState = false;       // false: 0 độ (Mở dây phơi), true: 180 độ (Thu dây phơi)
 static volatile unsigned long lastDebounceTime = 0;
 volatile bool manualTriggered = false; 
+static bool manualOverride = false;
+static unsigned long overrideStartTime = 0;
+static unsigned long dryStartTime = 0;
 
 // --- HÀM XỬ LÝ NGẮT NGOÀI (ISR) ---
 void IRAM_ATTR handleButtonInterrupt() {
@@ -38,12 +41,17 @@ bool isClothesRetracted() {
   return currentServoState; 
 }
 
+void setServoRetracted(bool retracted) {
+  currentServoState = retracted;
+  myServo.write(retracted ? 180 : 0);
+  manualOverride = true;
+  overrideStartTime = millis();
+  dryStartTime = 0;
+  Serial.printf("MQTT -> Servo %s (%d do)\n", retracted ? "THU" : "MO", retracted ? 180 : 0);
+}
+
 void controlServoByRain() {
-  static bool manualOverride = false;
-  static unsigned long overrideStartTime = 0;
-  
   // Biến quản lý đếm thời gian 10s sau khi tạnh mưa
-  static unsigned long dryStartTime = 0; 
   const unsigned long DRY_DELAY_MS = 10000; // Thời gian chờ: 10 giây (10000 ms)
 
   // 1. CHẾ ĐỘ THỦ CÔNG (ƯU TIÊN NÚT BẤM)
@@ -99,4 +107,8 @@ void controlServoByRain() {
       }
     }
   }
+}
+
+void discardServoButtonEvent() {
+  manualTriggered = false;
 }

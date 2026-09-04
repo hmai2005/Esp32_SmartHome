@@ -48,6 +48,10 @@ void updateLEDButton() {
   }
 }
 
+void discardLEDButtonEvent() {
+  buttonPressed = false;
+}
+
 bool isLEDOn() {
   return ledState;
 }
