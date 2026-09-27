@@ -559,8 +559,7 @@ bool connectMQTT()
         Serial.println(client.state());
         return false;
     }
-    Serial.println("connected"
-    );
+    Serial.println("connected");
 
     // ONLINE STATE
     client.publish(availability_topic,availability_online_payload, true);
