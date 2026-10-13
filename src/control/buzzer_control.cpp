@@ -5,6 +5,11 @@
 #include "sensor_gas.h"
 
 #define BUZZER_PIN         19
+// Set false neu module coi cua ban kich hoat khi chan GPIO o muc LOW.
+constexpr bool BUZZER_ACTIVE_HIGH = true;
+static void writeBuzzer(bool on) {
+    digitalWrite(BUZZER_PIN, on == BUZZER_ACTIVE_HIGH ? HIGH : LOW);
+}
 #define SERVO_BUTTON_PIN   13
 #define FAN_BUTTON_PIN     14
 #define LED_BUTTON  25
@@ -23,7 +28,7 @@ void setupBuzzer()
     pinMode(FAN_BUTTON_PIN, INPUT_PULLUP);
     pinMode(LED_BUTTON, INPUT_PULLUP);
 
-    digitalWrite(BUZZER_PIN, LOW);
+    writeBuzzer(false);
 }
 
 void fireAlarmTask()
@@ -53,18 +58,18 @@ void fireAlarmTask()
         alarmActive = false; // Hủy trạng thái báo động
         alarmMuted  = true;  // Tránh việc cảm biến đang nhận gas/lửa kích hoạt còi lại ngay lập tức
         alarmStopButtonPressed = true;
-        digitalWrite(BUZZER_PIN, LOW);
+        writeBuzzer(false);
         Serial.println(F("Da nhan nut -> Tat bao dong thu cong!"));
     }
 
     // 4. Còi kêu liên tục cho đến khi alarmActive bị xóa bởi nút nhấn
     if (alarmActive)
     {
-        digitalWrite(BUZZER_PIN, HIGH);
+        writeBuzzer(true);
     }
     else
     {
-        digitalWrite(BUZZER_PIN, LOW);
+        writeBuzzer(false);
     }
 }
 

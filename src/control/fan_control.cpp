@@ -7,7 +7,7 @@
 // Tần số PWM
 #define PWM_FREQ 5000
 // Channel PWM
-#define PWM_CHANNEL 1
+#define PWM_CHANNEL 2
 // Độ phân giải 8 bit
 // Giá trị duty từ 0 -> 255
 #define PWM_RESOLUTION 8

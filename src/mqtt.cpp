@@ -106,33 +106,20 @@ int personCount = 0;
 
 bool connectWiFi()
 {
-    if (WiFi.status() == WL_CONNECTED)
-    {
-        return true;
+    if (WiFi.status() == WL_CONNECTED) return true;
+    // Khoi dong ket noi va tra ve ngay, khong cho 10 giay.
+    // maintainMQTTConnection() se thu lai sau RECONNECT_INTERVAL_MS.
+    static bool wifiStarted = false;
+    if (!wifiStarted) {
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(ssid, password);
+        wifiStarted = true;
+        Serial.println("WiFi connecting in background...");
+    } else {
+        // Re-issue begin when disconnected and retry interval has elapsed.
+        WiFi.reconnect();
     }
-    Serial.print("Connecting to WiFi: ");
-    Serial.println(ssid);
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
-
-    // Không block vô hạn.
-    // Chờ tối đa khoảng 10 giây.
-    for (int attempt = 0; attempt < 20; attempt++)
-    {
-        if (WiFi.status() == WL_CONNECTED)
-        {
-            Serial.println();
-            Serial.println("WiFi connected");
-            Serial.print("ESP32 IP: ");
-            Serial.println(WiFi.localIP());
-            return true;
-        }
-        Serial.print(".");
-        delay(500);
-    }
-    Serial.println();
-    Serial.println("WiFi connection failed");
-    return false;
+    return WiFi.status() == WL_CONNECTED;
 }
 // MQTT PUBLISH HELPERS
 //chuyển đổi số thực float sang dạng văn bản

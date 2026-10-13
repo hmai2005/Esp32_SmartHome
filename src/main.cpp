@@ -41,23 +41,12 @@ readGasSensor();
 
 //báo cháy
 fireAlarmTask();
-if (consumeAlarmStopButton())
-{
-// Nút dùng để tắt còi không được truyền sang các thiết bị khác.
-discardFanButtonEvent();
-discardLEDButtonEvent();
-discardServoButtonEvent();
-}
-else
-{
-// Xử lý nút bấm quạt.
+// Mot lan nhan nut vua tat coi (neu dang bao dong), vua dieu khien thiet bi.
+// Khong xoa su kien ngat Servo/Fan/LED.
+consumeAlarmStopButton();
 updateFanControl();
-//nút nhấn đkhien đèn
 updateLEDButton();
-
-//2. Logic tự động local (Mái che theo cảm biến mưa)
 controlServoByRain();
-}
 
 // 3. Gửi dữ liệu định kỳ
 sendSensorData();
