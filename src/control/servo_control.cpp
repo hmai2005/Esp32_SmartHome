@@ -8,7 +8,7 @@
 
 Servo myServo;
 
-bool currentServoState = false;       // false: 0 độ (Mở dây phơi), true: 180 độ (Thu dây phơi)
+bool currentServoState = false;       // false: 0 độ (Mở dây phơi), true: 90 độ (Thu dây phơi)
 static volatile unsigned long lastDebounceTime = 0;
 volatile bool manualTriggered = false; 
 static bool manualOverride = false;
@@ -43,11 +43,11 @@ bool isClothesRetracted() {
 
 void setServoRetracted(bool retracted) {
   currentServoState = retracted;
-  myServo.write(retracted ? 180 : 0);
+  myServo.write(retracted ? 90 : 0);
   manualOverride = true;
   overrideStartTime = millis();
   dryStartTime = 0;
-  Serial.printf("MQTT -> Servo %s (%d do)\n", retracted ? "THU" : "MO", retracted ? 180 : 0);
+  Serial.printf("MQTT -> Servo %s (%d do)\n", retracted ? "THU" : "MO", retracted ? 90 : 0);
 }
 
 void controlServoByRain() {
@@ -62,7 +62,7 @@ void controlServoByRain() {
     overrideStartTime = millis();
     dryStartTime = 0; // Reset bộ đếm tạnh mưa
     
-    int targetAngle = currentServoState ? 180 : 0;
+    int targetAngle = currentServoState ? 90 : 0;
     myServo.write(targetAngle);
     Serial.printf("Nut bam thu cong -> Quay Servo %d do\n", targetAngle);
   }
@@ -83,9 +83,9 @@ void controlServoByRain() {
     dryStartTime = 0; // Hễ có mưa là reset bộ đếm thời gian tạnh về 0
 
     if (!currentServoState) { // Nếu dây phơi đang mở -> Thu dây phơi ngay lập tức
-      myServo.write(180);
+      myServo.write(90);
       currentServoState = true;
-      Serial.println(F("Phat hien MUA -> Thu day phoi ngay lap tuc (180 do)"));
+      Serial.println(F("Phat hien MUA -> Thu day phoi ngay lap tuc (90 do)"));
     }
   } 
   // --- TRƯỜNG HỢP 2: TRỜI TẠNH ---
