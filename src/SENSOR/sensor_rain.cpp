@@ -1,26 +1,27 @@
 #include <Arduino.h>
 #include "sensor_rain.h"
-#include "servo_control.h"
 
 #define RAIN_ANALOG_PIN 35
 
-const int RAIN_THRESHOLD = 2800; 
+const int RAIN_THRESHOLD = 2800;
 
 void setupRainSensor() {
   Serial.println("Khoi tao cam bien MUA thanh cong!");
 }
 
-// Hàm cấp nguồn tạm thời và đọc giá trị Analog
+// Đọc giá trị analog của cảm biến mưa.
+// Hàm này không điều khiển cấp/ngắt nguồn cảm biến.
 int getRainAnalogValue() {
   int analogVal = analogRead(RAIN_ANALOG_PIN);
   return analogVal;
 }
 
-// Trả về true nếu TRỜI MƯA
+// Trả về true nếu giá trị analog thấp hơn ngưỡng.
 bool isRaining() {
   return (getRainAnalogValue() < RAIN_THRESHOLD);
 }
 
+// In giá trị cảm biến và trạng thái ra Serial.
 void readRainSensor() {
   int analogVal = getRainAnalogValue();
 
@@ -28,8 +29,8 @@ void readRainSensor() {
   Serial.print(analogVal);
 
   if (analogVal < RAIN_THRESHOLD) {
-    Serial.println(F(" -> Trang thai: TRỜI ĐANG MƯA!"));
+    Serial.println(F(" -> Trang thai: TROI DANG MUA!"));
   } else {
-    Serial.println(F(" -> Trang thai: Tạnh ráo"));
+    Serial.println(F(" -> Trang thai: Tanh rao"));
   }
 }

@@ -3,7 +3,7 @@
 #include "sensor_gas.h"
 #include "sensor_rain.h"
 
-#include "servo_control.h"
+#include "motor_control.h"
 #include "fan_control.h"
 #include "led_control.h"
 #include "buzzer_control.h"
@@ -15,8 +15,8 @@
 
 // Điền WiFi của bạn tại đây.
 // Không nên commit mật khẩu thật lên Git.
-const char* ssid = "GIMhomes #4";
-const char* password = "likeyourhome";
+const char* ssid = "hlong";
+const char* password = "@@@@@@@@";
 
 const char* mqtt_server = "caebe80fc31544bab129c40f7b5d3425.s1.eu.hivemq.cloud";
 const int mqtt_port = 8883;
@@ -330,7 +330,7 @@ void callback( char* topic, byte* payload,unsigned int length)
             return;
         }
 
-        setServoRetracted(state.as<bool>());
+        setMotorRetracted(state.as<bool>());
         return;
     }
 
